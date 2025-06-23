@@ -1,0 +1,17 @@
+services:
+  # Serviço único para PHP Laravel + Nginx
+  app:
+    build:
+      args:
+        user: laravel
+        uid: 1000
+      context: ./
+      dockerfile: ./dockerfiles/Dockerfile
+    image: compensacao
+    container_name: compensacao-app
+    restart: always
+    working_dir: /var/www/
+    ports:
+      - "8181:80"
+    volumes:
+      - ./:/var/www

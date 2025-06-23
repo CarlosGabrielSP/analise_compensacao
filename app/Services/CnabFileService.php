@@ -6,6 +6,7 @@ use App\Models\CnabRecord;
 use Carbon\Carbon;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
 class CnabFileService
@@ -139,26 +140,28 @@ class CnabFileService
      */
     public function processFile(UploadedFile $file): array
     {
+        DB::table('cnab_records')->truncate();
+
         $fileName = $file->getClientOriginalName();
         $content = file_get_contents($file->getRealPath());
-        
+
         // Remove possível BOM (Byte Order Mark) do início do arquivo
         $content = preg_replace('/^\xEF\xBB\xBF/', '', $content);
-        
+
         // Normaliza quebras de linha para lidar com diferentes formatos (Windows, Unix, Mac)
         $content = str_replace(["\r\n", "\r"], "\n", $content);
-        
+
         // Divide o conteúdo em linhas
         $lines = explode("\n", $content);
-        
+
         // Remove linhas vazias
         $lines = array_filter($lines, function($line) {
             return trim($line) !== '';
         });
-        
+
         // Reindexar o array após filtrar
         $lines = array_values($lines);
-        
+
         // Validação básica do arquivo
         if (empty($lines)) {
             return [
@@ -167,21 +170,21 @@ class CnabFileService
                 'records' => []
             ];
         }
-        
+
         // Log para debug - primeiras 5 linhas
         Log::debug('Análise do arquivo CNAB: ' . $fileName);
         for ($i = 0; $i < min(5, count($lines)); $i++) {
             $line = $lines[$i];
             Log::debug("Linha {$i}: Tamanho=" . strlen($line) . ", Primeiros caracteres: " . substr($line, 0, 20));
         }
-        
+
         // Verifica se a primeira linha é um Header (tipo 0)
         $firstLine = $lines[0] ?? '';
-        
+
         // Verifica se o arquivo tem um formato alternativo (alguns bancos podem ter variações)
         $hasHeader = false;
         $hasTrailer = false;
-        
+
         // Procura por um registro de cabeçalho nas primeiras linhas
         for ($i = 0; $i < min(3, count($lines)); $i++) {
             if (strlen($lines[$i]) >= 1 && substr($lines[$i], 0, 1) === '0') {
@@ -190,7 +193,7 @@ class CnabFileService
                 break;
             }
         }
-        
+
         // Se não encontrou um cabeçalho válido
         if (!$hasHeader) {
             return [
@@ -199,11 +202,11 @@ class CnabFileService
                 'records' => []
             ];
         }
-        
+
         // Verifica se o tamanho da linha é aproximadamente 400 caracteres (com margem de erro)
         if (abs(strlen($firstLine) - 400) > 5) {
             Log::warning('Tamanho da linha de cabeçalho (' . strlen($firstLine) . ') difere do esperado (400)');
-            
+
             // Se a diferença for muito grande, rejeita o arquivo
             if (abs(strlen($firstLine) - 400) > 20) {
                 return [
@@ -213,7 +216,7 @@ class CnabFileService
                 ];
             }
         }
-        
+
         // Procura por um registro de trailer nas últimas linhas
         for ($i = count($lines) - 1; $i >= max(0, count($lines) - 3); $i--) {
             if (strlen($lines[$i]) >= 1 && substr($lines[$i], 0, 1) === '9') {
@@ -222,27 +225,27 @@ class CnabFileService
                 break;
             }
         }
-        
+
         // Se não encontrou um trailer válido
         if (!$hasTrailer) {
             Log::warning('Trailer não encontrado no arquivo');
             // Continua o processamento mesmo sem trailer, apenas loga o aviso
         }
-        
+
         // Processa os registros de detalhe (tipo 7)
         $records = [];
         $recordCount = 0;
-        
+
         foreach ($lines as $line) {
             // Ignora linhas vazias ou com tamanho incorreto
             if (empty($line) || strlen($line) !== 400) {
                 continue;
             }
-            
+
             // Processa apenas registros de detalhe (tipo 7)
             if (substr($line, 0, 1) === '7') {
                 $recordCount++;
-                
+
                 // Extrai os campos conforme o layout
                 $nossoNumero = trim(substr($line, 63, 17));
                 $numeroBoleto = trim(substr($line, 116, 10));
@@ -253,7 +256,7 @@ class CnabFileService
                 $comando = substr($line, 108, 2);
                 $naturezaRecebimento = substr($line, 86, 2);
                 $canalPagamento = substr($line, 392, 2);
-                
+
                 // Cria o registro
                 $record = new CnabRecord([
                     'file_name' => $fileName,
@@ -271,68 +274,56 @@ class CnabFileService
                     'canal_pagamento_descricao' => $this->canaisPagamento[$canalPagamento] ?? 'Desconhecido',
                     'raw_data' => $line,
                 ]);
-                
+
                 $records[] = $record;
             }
         }
-        
+
         // Salva os registros no banco de dados
         CnabRecord::insert(
             collect($records)->map(function ($record) {
                 return $record->toArray();
             })->toArray()
         );
-        
+
         return [
             'success' => true,
             'message' => "Arquivo processado com sucesso. {$recordCount} registros encontrados.",
             'records' => $records
         ];
     }
-    
-    /**
-     * Converte uma string de data no formato DDMMAA para um objeto Carbon
-     *
-     * @param string $dateString
-     * @return Carbon|null
-     */
+
     private function parseDate(string $dateString): ?Carbon
     {
         if (empty($dateString) || $dateString === '000000') {
             return null;
         }
-        
+
         try {
             $day = substr($dateString, 0, 2);
             $month = substr($dateString, 2, 2);
             $year = substr($dateString, 4, 2);
-            
+
             // Ajusta o ano para o formato completo (20XX)
             $fullYear = $year < 80 ? "20{$year}" : "19{$year}";
-            
+
             return Carbon::createFromFormat('d/m/Y', "{$day}/{$month}/{$fullYear}");
         } catch (\Exception $e) {
             Log::error("Erro ao converter data: {$dateString}", ['exception' => $e]);
             return null;
         }
     }
-    
-    /**
-     * Converte uma string de valor no formato CNAB para decimal
-     *
-     * @param string $valueString
-     * @return float
-     */
+
     private function parseValue(string $valueString): float
     {
         // Remove zeros à esquerda
         $valueString = ltrim($valueString, '0');
-        
+
         // Se a string estiver vazia após remover os zeros, retorna 0
         if (empty($valueString)) {
             return 0;
         }
-        
+
         // Converte para float com 2 casas decimais
         return floatval(substr($valueString, 0, -2) . '.' . substr($valueString, -2));
     }
