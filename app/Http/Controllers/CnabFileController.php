@@ -61,14 +61,14 @@ class CnabFileController extends Controller
     {
         // Validar o arquivo
         $validator = Validator::make($request->all(), [
-            'file' => 'required|file|mimes:txt,bol|max:10240', // max 10MB
+            'file' => 'required|file|mimes:txt,bol', // max 10MB
         ]);
 
-        if ($validator->fails()) {
-            return redirect()->back()
-                ->withErrors($validator)
-                ->withInput();
-        }
+//        if ($validator->fails()) {
+//            return redirect()->back()
+//                ->withErrors($validator)
+//                ->withInput();
+//        }
 
         // Processar o arquivo
         $result = $this->cnabFileService->processFile($request->file('file'));

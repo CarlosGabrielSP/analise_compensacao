@@ -140,7 +140,7 @@ class CnabFileService
      */
     public function processFile(UploadedFile $file): array
     {
-        DB::table('cnab_records')->truncate();
+        $this->deleteRecords();
 
         $fileName = $file->getClientOriginalName();
         $content = file_get_contents($file->getRealPath());
@@ -235,8 +235,10 @@ class CnabFileService
         // Processa os registros de detalhe (tipo 7)
         $records = [];
         $recordCount = 0;
-
+        $numLinha = 0;
         foreach ($lines as $line) {
+            $numLinha++;
+
             // Ignora linhas vazias ou com tamanho incorreto
             if (empty($line) || strlen($line) !== 400) {
                 continue;
@@ -256,10 +258,12 @@ class CnabFileService
                 $comando = substr($line, 108, 2);
                 $naturezaRecebimento = substr($line, 86, 2);
                 $canalPagamento = substr($line, 392, 2);
+                $valorTarifa = $this->parseValue(substr($line, 181, 7));
 
                 // Cria o registro
                 $record = new CnabRecord([
                     'file_name' => $fileName,
+                    'linha' => $numLinha,
                     'nosso_numero' => $nossoNumero,
                     'numero_boleto' => $numeroBoleto,
                     'data_vencimento' => $dataVencimento,
@@ -272,6 +276,7 @@ class CnabFileService
                     'natureza_recebimento_descricao' => $this->naturezas[$naturezaRecebimento] ?? 'Desconhecido',
                     'canal_pagamento' => $canalPagamento,
                     'canal_pagamento_descricao' => $this->canaisPagamento[$canalPagamento] ?? 'Desconhecido',
+                    'valor_tarifa' => $valorTarifa,
                     'raw_data' => $line,
                 ]);
 
@@ -326,5 +331,12 @@ class CnabFileService
 
         // Converte para float com 2 casas decimais
         return floatval(substr($valueString, 0, -2) . '.' . substr($valueString, -2));
+    }
+
+    private function deleteRecords() {
+        $records = CnabRecord::all();
+        foreach ($records as $record) {
+            $record->delete();
+        }
     }
 }

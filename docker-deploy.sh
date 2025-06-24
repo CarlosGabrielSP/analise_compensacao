@@ -1,6 +1,6 @@
 #!/bin/bash
 
-echo "Iniciando deploy do Monitor de Temperatura..."
+echo "Iniciando deploy do Arquivo retorno - BB..."
 
 # Construir os contêineres
 docker compose build app
@@ -18,11 +18,11 @@ docker compose exec app php artisan migrate --force --seed
 
 # Limpar cache
 echo "Limpar cache..."
-docker compose exec app php artisan optimize:clear
+docker compose exec app php artisan config:clear
 
 # Inicia worker de fila
-echo "Inicia worker de fila..."
-docker compose exec app php artisan queue:work --tries=3
+#echo "Inicia worker de fila..."
+#docker compose exec app php artisan queue:work --tries=3
 
 echo "Deploy finalizado!"
 

@@ -14,6 +14,7 @@ return new class extends Migration
         Schema::create('cnab_records', function (Blueprint $table) {
             $table->id();
             $table->string('file_name');
+            $table->integer('linha');
             $table->string('nosso_numero', 17);
             $table->string('numero_boleto', 10)->nullable();
             $table->date('data_vencimento')->nullable();
@@ -26,9 +27,10 @@ return new class extends Migration
             $table->string('natureza_recebimento_descricao')->nullable();
             $table->string('canal_pagamento', 2)->nullable();
             $table->string('canal_pagamento_descricao')->nullable();
+            $table->decimal('valor_tarifa', 13, 2)->nullable();
             $table->text('raw_data')->nullable();
             $table->timestamps();
-            
+
             // Add index for better search performance
             $table->index('nosso_numero');
             $table->index('data_vencimento');

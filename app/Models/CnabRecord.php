@@ -16,6 +16,7 @@ class CnabRecord extends Model
      */
     protected $fillable = [
         'file_name',
+        'linha',
         'nosso_numero',
         'numero_boleto',
         'data_vencimento',
@@ -28,6 +29,7 @@ class CnabRecord extends Model
         'natureza_recebimento_descricao',
         'canal_pagamento',
         'canal_pagamento_descricao',
+        'valor_tarifa',
         'raw_data',
     ];
 
@@ -39,8 +41,6 @@ class CnabRecord extends Model
     protected $casts = [
         'data_vencimento' => 'date',
         'data_liquidacao' => 'date',
-        'valor_boleto' => 'decimal:2',
-        'valor_recebido' => 'decimal:2',
     ];
 
     /**
@@ -61,6 +61,16 @@ class CnabRecord extends Model
     public function getFormattedValorRecebidoAttribute()
     {
         return 'R$ ' . number_format($this->valor_recebido, 2, ',', '.');
+    }
+
+    /**
+     * Get the formatted valor_recebido attribute.
+     *
+     * @return string
+     */
+    public function getFormattedValorTarifaAttribute()
+    {
+        return 'R$ ' . number_format($this->valor_tarifa, 2, ',', '.');
     }
 
     /**

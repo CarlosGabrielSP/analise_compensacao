@@ -49,45 +49,69 @@ final class RecordsTable extends PowerGridComponent
     public function fields(): PowerGridFields
     {
         return PowerGrid::fields()
+            ->add('linha')
             ->add('nosso_numero')
-            ->add('numero_boleto')
-            ->add('data_vencimento')
-            ->add('valor_boleto')
-            ->add('data_liquidacao')
-            ->add('valor_recebido')
-            ->add('comando')
-            ->add('natureza_recebimento')
-            ->add('canal_pagamento');
+//            ->add('numero_boleto')
+            ->add('formattedDataVencimento')
+            ->add('formattedDataLiquidacao')
+            ->add('comando_2', fn($row) => $row->comando . ' - ' . $row->comando_descricao)
+            ->add('natureza_recebimento_2', fn($row) => $row->natureza_recebimento . ' - ' . $row->natureza_recebimento_descricao)
+            ->add('canal_pagamento_2', fn($row) => $row->canal_pagamento . ' - ' . $row->canal_pagamento_descricao)
+            ->add('valor_boleto', fn($row) =>
+                [
+                    'tpl-valor-boleto' => [
+                        'valor_boleto' => 'R$ ' . number_format($row->valor_boleto, 2, ',', '.')
+                    ],
+                ]
+            )
+            ->add('valor_recebido', fn($row) =>
+                [
+                    'tpl-valor-recebido' => [
+                        'valor_recebido' => 'R$ ' . number_format($row->valor_recebido, 2, ',', '.')
+                    ],
+                ]
+            )
+            ->add('valor_tarifa', fn($row) =>
+                [
+                    'tpl-valor-tarifa' => [
+                        'valor_tarifa' => 'R$ ' . number_format($row->valor_tarifa, 2, ',', '.')
+                    ],
+                ]
+            );
     }
 
     public function columns(): array
     {
         return [
+            Column::make('Linha', 'linha')
+                ->sortable()
+                ->searchable(),
+
             Column::make('Nosso numero', 'nosso_numero')
                 ->sortable()
                 ->searchable(),
 
-            Column::make('Numero boleto', 'numero_boleto')
+//            Column::make('Numero boleto', 'numero_boleto')
+//                ->sortable()
+//                ->searchable(),
+
+            Column::make('Data vencimento', 'formattedDataVencimento')
                 ->sortable()
                 ->searchable(),
 
-            Column::make('Data vencimento', 'data_vencimento')
+            Column::make('Data liquidacao', 'formattedDataLiquidacao')
                 ->sortable()
                 ->searchable(),
 
-            Column::make('Data liquidacao', 'data_liquidacao')
+            Column::make('Natureza recebimento', 'natureza_recebimento_2')
                 ->sortable()
                 ->searchable(),
 
-            Column::make('Comando', 'comando')
+            Column::make('Canal pagamento', 'canal_pagamento_2')
                 ->sortable()
                 ->searchable(),
 
-            Column::make('Natureza recebimento', 'natureza_recebimento')
-                ->sortable()
-                ->searchable(),
-
-            Column::make('Canal pagamento', 'canal_pagamento')
+            Column::make('Comando', 'comando_2')
                 ->sortable()
                 ->searchable(),
 
@@ -100,46 +124,64 @@ final class RecordsTable extends PowerGridComponent
                 ->withSum('Total', header: false, footer: true)
                 ->sortable()
                 ->searchable(),
+
+            Column::make('Valor Tarifa', 'valor_tarifa')
+                ->withSum('Total: ', header: false, footer: true)
+                ->sortable()
+                ->searchable(),
         ];
     }
 
     public function filters(): array
     {
         return [
+//            Filter::inputText('linha')->operators(['contains']),
             Filter::inputText('nosso_numero')->operators(['contains']),
-            Filter::inputText('valor_boleto')->operators(['contains']),
-            Filter::inputText('numero_boleto')->operators(['contains']),
-            Filter::select('comando', 'comando')
-                ->dataSource(CnabRecord::select('comando')
+//            Filter::inputText('numero_boleto')->operators(['contains']),
+            Filter::datepicker('formattedDataVencimento'),
+            Filter::datepicker('formattedDataLiquidacao'),
+            Filter::select('comando_2', 'comando')
+                ->dataSource(CnabRecord::select('comando_descricao as comando_2', 'comando')
                     ->distinct()
                     ->orderBy('comando')
                     ->get())
-                ->optionLabel('comando')
+                ->optionLabel('comando_2')
                 ->optionValue('comando'),
-            Filter::select('natureza_recebimento', 'natureza_recebimento')
-                ->dataSource(CnabRecord::select('natureza_recebimento')
+            Filter::select('natureza_recebimento_2', 'natureza_recebimento')
+                ->dataSource(CnabRecord::select('natureza_recebimento_descricao as natureza_recebimento_2', 'natureza_recebimento')
                     ->distinct()
                     ->orderBy('natureza_recebimento')
                     ->get())
-                ->optionLabel('natureza_recebimento')
+                ->optionLabel('natureza_recebimento_2')
                 ->optionValue('natureza_recebimento'),
-            Filter::select('canal_pagamento', 'canal_pagamento')
-                ->dataSource(CnabRecord::select('canal_pagamento')
+            Filter::select('canal_pagamento_2', 'canal_pagamento')
+                ->dataSource(CnabRecord::select('canal_pagamento_descricao as canal_pagamento_2', 'canal_pagamento')
                     ->distinct()
                     ->orderBy('canal_pagamento')
                     ->get())
-                ->optionLabel('canal_pagamento')
+                ->optionLabel('canal_pagamento_2')
                 ->optionValue('canal_pagamento'),
-            Filter::datepicker('data_vencimento'),
-            Filter::datepicker('data_liquidacao'),
+            Filter::inputText('valor_boleto')->operators(['contains']),
+            Filter::inputText('valor_recebido')->operators(['contains']),
+            Filter::inputText('valor_tarifa')->operators(['contains']),
         ];
     }
 
     public function summarizeFormat(): array
     {
         return [
-            'valor_boleto.{sum}' => fn ($value) => 'R$ ' . number_format($value, 2, ',', '.'),
+            'valor_boleto.{sum}' => fn ($value) =>  ' R$ ' . number_format($value, 2, ',', '.'),
             'valor_recebido.{sum}' => fn ($value) => 'R$ ' . number_format($value, 2, ',', '.'),
+            'valor_tarifa.{sum}' => fn ($value) => 'R$ ' . number_format($value, 2, ',', '.'),
+        ];
+    }
+
+    public function rowTemplates(): array
+    {
+        return [
+            'tpl-valor-boleto' => '<div class="text-right bg-gray-100 py-1 px-2">{{ valor_boleto }}</div>',
+            'tpl-valor-recebido' => '<div class="text-right bg-gray-100 py-1 px-2">{{ valor_recebido }}</div>',
+            'tpl-valor-tarifa' => '<div class="text-right bg-gray-100 py-1 px-2">{{ valor_tarifa }}</div>',
         ];
     }
 
